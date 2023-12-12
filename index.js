@@ -75,7 +75,7 @@ async function postData(csrfToken) {
 
 async function startSearch(chatId) {
     await bot.sendMessage(chatId, "Оберіть одну з бажаних комбінацій:");
-    await bot.sendMessage(chatId, "д", numberOptions);
+    await bot.sendMessage(chatId, ":)", numberOptions);
 }
 
 async function oneAtThe(chatId, num) {
