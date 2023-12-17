@@ -1,17 +1,3 @@
-const sameLetters = [
-    "..AA",
-    "..BB",
-    "..EE",
-    "..II",
-    "..KK",
-    "..MM",
-    "..HH",
-    "..OO",
-    "..PP",
-    "..CC",
-    "..TT",
-    "..XX",
-];
 // const regions = [
 //     "АР Крим",
 //     "Вінницька",
@@ -45,7 +31,20 @@ const sameLetters = [
 //     text: city,
 //     callback_data: city,
 // }));
-
+export const sameLetters = [
+    "..AA",
+    "..BB",
+    "..EE",
+    "..II",
+    "..KK",
+    "..MM",
+    "..HH",
+    "..OO",
+    "..PP",
+    "..CC",
+    "..TT",
+    "..XX",
+];
 const numberOptionsArray = sameLetters.map((letter) => ({
     text: letter,
     callback_data: letter,

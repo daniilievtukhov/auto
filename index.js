@@ -2,8 +2,9 @@ import axios from "axios";
 import TelegramApi from "node-telegram-bot-api";
 import cheerio from "cheerio";
 import fs from "fs";
-import { writeFile } from "fs/promises";
-import { numberOptions, againOptions } from "./options.js";
+import { appendFile } from "fs/promises";
+import { numberOptions, againOptions, sameLetters } from "./options.js";
+import { tscList } from "./tsc.js";
 
 const token = "6347029504:AAGpNCYGUNaWfT5KM-kaLh5cVx7rylVZ3s0";
 
@@ -40,36 +41,38 @@ async function fetchData() {
 }
 
 async function postData(csrfToken) {
-    const params = new URLSearchParams();
-    params.append("region", "15");
-    params.append("tsc", "Весь регіон");
-    params.append("type_venichle", "light_car_and_truck");
-    params.append("number", "");
-    params.append("csrfmiddlewaretoken", csrfToken);
+    // Проходимо по всіх об'єктах у масиві tscList
+    for (const tscItem of tscList) {
+        const params = new URLSearchParams();
+        params.append("region", "15");
+        params.append("tsc", tscItem.tscNumber);
+        params.append("type_venichle", "light_car_and_truck");
+        params.append("number", "");
+        params.append("csrfmiddlewaretoken", csrfToken);
 
-    const res = await fetch(url, {
-        method: "POST",
-        body: params.toString(),
-        headers: {
-            Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-            "Content-Type": "application/x-www-form-urlencoded",
-        },
-    });
-
-    const data = await res.text();
-
-    await writeFile("index.html", data);
-    if (data) {
-        await writeFile("index.html", data);
-        const html = fs.readFileSync("index.html", "utf-8");
-        const $ = cheerio.load(html);
-        const tdElements = $("td");
-        tdElements.each((index, element) => {
-            const licensePlate = $(element).text().trim();
-            if (licensePlateRegex.test(licensePlate)) {
-                licensePlateNumbers.push(licensePlate);
-            }
+        const res = await fetch(url, {
+            method: "POST",
+            body: params.toString(),
+            headers: {
+                Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
         });
+
+        const data = await res.text();
+
+        if (data) {
+            await appendFile("index.html", data);
+            const html = fs.readFileSync("index.html", "utf-8");
+            const $ = cheerio.load(html);
+            const tdElements = $("td");
+            tdElements.each((index, element) => {
+                const licensePlate = $(element).text().trim();
+                if (licensePlateRegex.test(licensePlate)) {
+                    licensePlateNumbers.push(licensePlate);
+                }
+            });
+        }
     }
 }
 
