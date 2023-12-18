@@ -41,6 +41,7 @@ async function fetchData() {
 }
 
 async function postData(csrfToken) {
+    licensePlateNumbers.length = 0; // clear array
     // Проходимо по всіх об'єктах у масиві tscList
     for (const tscItem of tscList) {
         const params = new URLSearchParams();
@@ -62,9 +63,9 @@ async function postData(csrfToken) {
         const data = await res.text();
 
         if (data) {
-            await appendFile("index.html", data);
-            const html = fs.readFileSync("index.html", "utf-8");
-            const $ = cheerio.load(html);
+            // await appendFile("index.html", data);
+            // const html = fs.readFileSync("index.html", "utf-8");
+            const $ = cheerio.load(data);
             const tdElements = $("td");
             tdElements.each((index, element) => {
                 const licensePlate = $(element).text().trim();
@@ -227,10 +228,11 @@ async function getAllMirrorLetters(chatId) {
 }
 async function start() {
     try {
+        console.log('loading')
         const csrfToken = await fetchData();
 
         await postData(csrfToken);
-
+        console.log('started')
         // Вызываем функцию fetchData раз в 12 часов
         setInterval(async () => {
             const csrfToken = await fetchData();
