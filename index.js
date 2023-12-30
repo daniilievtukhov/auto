@@ -1,3 +1,5 @@
+process.env.NTBA_FIX_319 = 1;
+
 import axios from "axios";
 import TelegramApi from "node-telegram-bot-api";
 import cheerio from "cheerio";
@@ -86,7 +88,7 @@ async function startSearch(chatId) {
     await bot.sendMessage(chatId, ":)", numberOptions);
 }
 
-async function getOneAtThe(numbers, num) {
+function getOneAtThe(numbers, num) {
     const filteredNumbers = [];
     numbers.forEach((number) => {
         const slicedNumber = number.slice(2, 6);
@@ -98,7 +100,7 @@ async function getOneAtThe(numbers, num) {
     return filteredNumbers;
 }
 
-function getZeroEnd(numbers, chatId) {
+function getZeroEnd(numbers) {
     const filteredNumbers = numbers.filter((number) => {
         const filteredNumber = number.slice(2, 6);
 
@@ -198,14 +200,24 @@ async function findNewNumbers() {
 
         allNumbers = new Set(currentNumbers);
 
-        const result = findMatches(newNumbers);
-        const message = Object.keys(result).map(key => `${key}:\n${result[key].join(', ')}`).join('\n');
-        const messages = fixMessageLength(message);
-        for (const user of users) {
-            for (const message of messages) {
-                await safeSendMessage(user, message);
+        const results = findMatches(newNumbers);
+        let message = '';
+        for (const key in results) {
+            if (results[key].length > 0) {
+                message += key + ':\n';
+                message += results[key].join(', ')
+                message += '\n\n';
             }
         }
+        if (message.length > 0) {
+            const messages = fixMessageLength(message);
+            for (const user of users) {
+                for (const message of messages) {
+                    await safeSendMessage(user, message);
+                }
+            }
+        }
+
     } catch (e) {
         console.log(e)
     }
@@ -235,7 +247,7 @@ async function start() {
 
         console.log('started')
         // Вызываем функцию fetchData раз в 12 часов
-        setInterval(findNewNumbers, 1*60*1000);
+        setInterval(findNewNumbers, 5*60*1000);
 
         bot.setMyCommands([
             { command: "/start", description: "Почати пошук номеру" },
@@ -264,11 +276,11 @@ async function start() {
                 //     "Оберіть свій регіон",
                 //     chooseRegionOptions
                 // );
-            }
-            if (text === "/search") {
+            } else if (text === "/search") {
                 // return startSearch(chatId);
+            } else {
+                await bot.sendMessage(chatId, "Вибачте, не зрозумів Вас:(");
             }
-            return bot.sendMessage(chatId, "Вибачте, не зрозумів Вас:(");
         });
 
         // bot.on("callback_query", async (msg) => {
