@@ -1,10 +1,9 @@
 import axios from "axios";
 import TelegramApi from "node-telegram-bot-api";
 import cheerio from "cheerio";
-import fs from "fs";
-import { appendFile } from "fs/promises";
 import { numberOptions, againOptions, sameLetters } from "./options.js";
 import { tscList } from "./tsc.js";
+import * as fs from "fs";
 
 const token = "6347029504:AAGpNCYGUNaWfT5KM-kaLh5cVx7rylVZ3s0";
 
@@ -12,9 +11,11 @@ const bot = new TelegramApi(token, { polling: true });
 
 const url = "http://opendata.hsc.gov.ua/check-leisure-license-plates/";
 
-const licensePlateNumbers = [];
+const licensePlateRegex = /^[A-Z]{2}\d{4}[A-Z]{2}$/g;
 
-const licensePlateRegex = /^[A-Z]{2}\d{4}[A-Z]{2}$/;
+let allNumbers = new Set();
+
+const users = JSON.parse(fs.readFileSync('users.json', 'utf8'));
 
 async function fetchData() {
     try {
@@ -41,7 +42,7 @@ async function fetchData() {
 }
 
 async function postData(csrfToken) {
-    licensePlateNumbers.length = 0; // clear array
+    const numbers = [];
     // Проходимо по всіх об'єктах у масиві tscList
     for (const tscItem of tscList) {
         const params = new URLSearchParams();
@@ -61,20 +62,23 @@ async function postData(csrfToken) {
         });
 
         const data = await res.text();
-
         if (data) {
-            // await appendFile("index.html", data);
-            // const html = fs.readFileSync("index.html", "utf-8");
-            const $ = cheerio.load(data);
-            const tdElements = $("td");
-            tdElements.each((index, element) => {
-                const licensePlate = $(element).text().trim();
-                if (licensePlateRegex.test(licensePlate)) {
-                    licensePlateNumbers.push(licensePlate);
-                }
-            });
+            // const $ = cheerio.load(data);
+            // const tdElements = $("td");
+            // tdElements.each((index, element) => {
+            //     const licensePlate = $(element).text().trim();
+            //     if (licensePlateRegex.test(licensePlate)) {
+            //         numbers.push(licensePlate);
+            //     }
+            // });
+
+            const regExpNumbers = data.match(licensePlateRegex)
+            if (regExpNumbers !== null) {
+                numbers.concat(regExpNumbers)
+            }
         }
     }
+    return numbers;
 }
 
 async function startSearch(chatId) {
@@ -82,64 +86,31 @@ async function startSearch(chatId) {
     await bot.sendMessage(chatId, ":)", numberOptions);
 }
 
-async function oneAtThe(chatId, num) {
+async function getOneAtThe(numbers, num) {
     const filteredNumbers = [];
-    licensePlateNumbers.forEach((number) => {
+    numbers.forEach((number) => {
         const slicedNumber = number.slice(2, 6);
         if (slicedNumber === num) {
             filteredNumbers.push(number);
         }
     });
 
-    if (filteredNumbers.length > 0) {
-        const chunkSize = 400; // Кількість номерів у кожній частині
-        for (let i = 0; i < filteredNumbers.length; i += chunkSize) {
-            const chunk = filteredNumbers.slice(i, i + chunkSize);
-            const message = `ОСЬ ЯКІ НОМЕРИ Я ЗНАЙШОВ ПО ДАНІЙ ОБЛАСТІ:\n${chunk.join(
-                "\n"
-            )}`;
-
-            // Відправка частини повідомлення
-            await bot.sendMessage(chatId, message, againOptions);
-        }
-    } else {
-        await bot.sendMessage(
-            chatId,
-            `На жаль, номери не знайдені за цим критерієм. Спробуйте інший варіант.`,
-            againOptions
-        );
-    }
+    return filteredNumbers;
 }
 
-async function zeroEnd(chatId) {
-    const filteredNumbers = licensePlateNumbers.filter((number) => {
+function getZeroEnd(numbers, chatId) {
+    const filteredNumbers = numbers.filter((number) => {
         const filteredNumber = number.slice(2, 6);
 
         return filteredNumber.endsWith("00");
     });
-    if (filteredNumbers.length > 0) {
-        const chunkSize = 400; // Кількість номерів у кожній частині
-        for (let i = 0; i < filteredNumbers.length; i += chunkSize) {
-            const chunk = filteredNumbers.slice(i, i + chunkSize);
-            const message = `ОСЬ ЯКІ НОМЕРИ Я ЗНАЙШОВ ПО ДАНІЙ ОБЛАСТІ:\n${chunk.join(
-                "\n"
-            )}`;
 
-            // Відправка частини повідомлення
-            await bot.sendMessage(chatId, message, againOptions);
-        }
-    } else {
-        await bot.sendMessage(
-            chatId,
-            `На жаль, номери не знайдені за цим критерієм. Спробуйте інший варіант.`,
-            againOptions
-        );
-    }
+    return filteredNumbers;
 }
 
-async function getSameLetters(chatId, letters) {
+function getSameLetters(numbers, letters) {
     const filteredNumbers = [];
-    licensePlateNumbers.forEach((number) => {
+    numbers.forEach((number) => {
         const slicedNumber = number.slice(6, 8);
 
         if (slicedNumber.toUpperCase() === letters.slice(2).toUpperCase()) {
@@ -147,30 +118,12 @@ async function getSameLetters(chatId, letters) {
         }
     });
 
-    if (filteredNumbers.length > 0) {
-        // Поділимо повідомлення на менші частини
-        const chunkSize = 400; // Кількість номерів у кожній частині
-        for (let i = 0; i < filteredNumbers.length; i += chunkSize) {
-            const chunk = filteredNumbers.slice(i, i + chunkSize);
-            const message = `ОСЬ ЯКІ НОМЕРИ Я ЗНАЙШОВ ПО ДАНІЙ ОБЛАСТІ:\n${chunk.join(
-                "\n"
-            )}`;
-
-            // Відправка частини повідомлення
-            await bot.sendMessage(chatId, message, againOptions);
-        }
-    } else {
-        await bot.sendMessage(
-            chatId,
-            `На жаль, номери не знайдені за цим критерієм. Спробуйте інший варіант.`,
-            againOptions
-        );
-    }
+    return filteredNumbers;
 }
 
-async function getAllSameLetters(chatId) {
+function getAllSameLetters(numbers) {
     const filteredNumbers = [];
-    licensePlateNumbers.forEach((number) => {
+    numbers.forEach((number) => {
         const firstTwoLetters = number.slice(0, 2);
         const lastTwoLetters = number.slice(6, 8);
         if (firstTwoLetters === lastTwoLetters) {
@@ -178,28 +131,11 @@ async function getAllSameLetters(chatId) {
         }
     });
 
-    if (filteredNumbers.length > 0) {
-        const chunkSize = 400; // Кількість номерів у кожній частині
-        for (let i = 0; i < filteredNumbers.length; i += chunkSize) {
-            const chunk = filteredNumbers.slice(i, i + chunkSize);
-            const message = `ОСЬ ЯКІ НОМЕРИ Я ЗНАЙШОВ ПО ДАНІЙ ОБЛАСТІ:\n${chunk.join(
-                "\n"
-            )}`;
-
-            // Відправка частини повідомлення
-            await bot.sendMessage(chatId, message, againOptions);
-        }
-    } else {
-        await bot.sendMessage(
-            chatId,
-            `На жаль, номери не знайдені за цим критерієм. Спробуйте інший варіант.`,
-            againOptions
-        );
-    }
+    return filteredNumbers;
 }
-async function getAllMirrorLetters(chatId) {
+function getAllMirrorLetters(numbers) {
     const filteredNumbers = [];
-    licensePlateNumbers.forEach((number) => {
+    numbers.forEach((number) => {
         const firstTwoLetters = number.slice(0, 2);
         const lastTwoLetters = number.slice(6, 8);
         if (firstTwoLetters === lastTwoLetters.split("").reverse().join("")) {
@@ -207,37 +143,99 @@ async function getAllMirrorLetters(chatId) {
         }
     });
 
-    if (filteredNumbers.length > 0) {
-        const chunkSize = 400; // Кількість номерів у кожній частині
-        for (let i = 0; i < filteredNumbers.length; i += chunkSize) {
-            const chunk = filteredNumbers.slice(i, i + chunkSize);
-            const message = `ОСЬ ЯКІ НОМЕРИ Я ЗНАЙШОВ ПО ДАНІЙ ОБЛАСТІ:\n${chunk.join(
-                "\n"
-            )}`;
+    return filteredNumbers;
+}
 
-            // Відправка частини повідомлення
-            await bot.sendMessage(chatId, message, againOptions);
+
+function findMatches(numbers) {
+    const result = {};
+
+    result['....00..'] = getZeroEnd(numbers)
+    result['0001'] = getOneAtThe(numbers, '0001')
+    result['0010'] = getOneAtThe(numbers, '0010')
+    result['0100'] = getOneAtThe(numbers, '0100')
+    for (const sameLetter of sameLetters) {
+        result[sameLetter] = getSameLetters(numbers, sameLetter);
+    }
+    result['same letters'] = getAllSameLetters(numbers)
+    result['mirrored letters'] = getAllMirrorLetters(numbers)
+
+    return result;
+}
+
+
+function fixMessageLength(chatId, text) {
+    const result = [''];
+    const lines = text.split('\n');
+    let indexResult=0, indexLines=0;
+    while (indexLines < lines.length) {
+        if (result[indexResult].length + lines[indexLines].length > 4095) {
+            indexResult++;
+            result[indexResult] = '';
         }
-    } else {
-        await bot.sendMessage(
-            chatId,
-            `На жаль, номери не знайдені за цим критерієм. Спробуйте інший варіант.`,
-            againOptions
-        );
+        result[indexResult] += lines[indexLines] + '\n';
+        indexLines++;
+    }
+
+    return result;
+}
+
+
+async function findNewNumbers() {
+    try {
+        // get all numbers
+        const csrfToken = await fetchData();
+        const currentNumbers = await postData(csrfToken);
+
+        // find new numbers
+        const newNumbers = [];
+        for (const number of currentNumbers) {
+            if (!allNumbers.has(number)) {
+                newNumbers.push(number);
+                allNumbers.add(number);
+            }
+        }
+
+        allNumbers = new Set(currentNumbers);
+
+        const result = findMatches(newNumbers);
+        const message = Object.keys(result).map(key => `${key}:\n${result[key].join(', ')}`).join('\n');
+        const messages = fixMessageLength(message);
+        for (const user of users) {
+            for (const message of messages) {
+                await safeSendMessage(user, message);
+            }
+        }
+    } catch (e) {
+        console.log(e)
     }
 }
+
+async function safeSendMessage(chatId, message) {
+    try {
+        await bot.sendMessage(chatId, message);
+    } catch (error) {
+        if (error?.response?.body?.error_code === 403 && error?.response?.body?.description === 'Forbidden: bot was blocked by the user') {
+            const index = users.indexOf(user);
+            if (index > -1) {
+                users.splice(index, 1);
+            }
+        } else {
+            console.log(e);
+        }
+    }
+}
+
 async function start() {
     try {
         console.log('loading')
         const csrfToken = await fetchData();
+        const numbers = await postData(csrfToken);
+        allNumbers.add(...numbers);
 
-        await postData(csrfToken);
         console.log('started')
         // Вызываем функцию fetchData раз в 12 часов
-        setInterval(async () => {
-            const csrfToken = await fetchData();
-            await postData(csrfToken);
-        }, 7200000);
+        setInterval(findNewNumbers, 1*60*1000);
 
         bot.setMyCommands([
             { command: "/start", description: "Почати пошук номеру" },
@@ -253,7 +251,14 @@ async function start() {
                     chatId,
                     "https://upload.wikimedia.org/wikipedia/commons/5/5a/Car_icon_alone.png"
                 );
-                await bot.sendMessage(chatId, `Welcome to bot!`);
+                if (users.includes(chatId)) {
+                    await bot.sendMessage(chatId, `Ви вже підписані на оновлення`);
+                } else {
+                    await bot.sendMessage(chatId, `Ви підписалися на оновлення`);
+                    users.push(chatId);
+                    fs.writeFileSync('users.json', JSON.stringify(users));
+                }
+
                 // return bot.sendMessage(
                 //     chatId,
                 //     "Оберіть свій регіон",
@@ -261,42 +266,42 @@ async function start() {
                 // );
             }
             if (text === "/search") {
-                return startSearch(chatId);
+                // return startSearch(chatId);
             }
             return bot.sendMessage(chatId, "Вибачте, не зрозумів Вас:(");
         });
 
-        bot.on("callback_query", async (msg) => {
-            const data = msg.data;
-            const chatId = msg.message.chat.id;
-            if (data === "/again") {
-                return startSearch(chatId);
-            }
-
-            if (data === "....00..") {
-                return await zeroEnd(chatId);
-            }
-            if (data === "0001") {
-                return await oneAtThe(chatId, "0001");
-            }
-            if (data === "0010") {
-                return await oneAtThe(chatId, "0010");
-            }
-            if (data === "0100") {
-                return await oneAtThe(chatId, "0100");
-            }
-            for (let i = 0; i < sameLetters.length; i++) {
-                if (data === sameLetters[i]) {
-                    return await getSameLetters(chatId, sameLetters[i]);
-                }
-            }
-            if (data === "Однакові букви") {
-                return await getAllSameLetters(chatId);
-            }
-            if (data === "Дзеркальні букви") {
-                return await getAllMirrorLetters(chatId);
-            }
-        });
+        // bot.on("callback_query", async (msg) => {
+        //     const data = msg.data;
+        //     const chatId = msg.message.chat.id;
+        //     if (data === "/again") {
+        //         return startSearch(chatId);
+        //     }
+        //
+        //     if (data === "....00..") {
+        //         return await zeroEnd(chatId);
+        //     }
+        //     if (data === "0001") {
+        //         return await oneAtThe(chatId, "0001");
+        //     }
+        //     if (data === "0010") {
+        //         return await oneAtThe(chatId, "0010");
+        //     }
+        //     if (data === "0100") {
+        //         return await oneAtThe(chatId, "0100");
+        //     }
+        //     for (let i = 0; i < sameLetters.length; i++) {
+        //         if (data === sameLetters[i]) {
+        //             return await getSameLetters(chatId, sameLetters[i]);
+        //         }
+        //     }
+        //     if (data === "Однакові букви") {
+        //         return await getAllSameLetters(chatId);
+        //     }
+        //     if (data === "Дзеркальні букви") {
+        //         return await getAllMirrorLetters(chatId);
+        //     }
+        // });
     } catch (error) {
         console.error("Bot initialization error:", error);
     }
