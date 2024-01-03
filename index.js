@@ -17,7 +17,7 @@ const licensePlateRegex = /^[A-Z]{2}\d{4}[A-Z]{2}$/g;
 
 let allNumbers = new Set();
 
-const users = JSON.parse(fs.readFileSync('users.json', 'utf8'));
+const users = JSON.parse(fs.readFileSync("users.json", "utf8"));
 
 async function fetchData() {
     try {
@@ -74,9 +74,9 @@ async function postData(csrfToken) {
             //     }
             // });
 
-            const regExpNumbers = data.match(licensePlateRegex)
+            const regExpNumbers = data.match(licensePlateRegex);
             if (regExpNumbers !== null) {
-                numbers.concat(regExpNumbers)
+                numbers.concat(regExpNumbers);
             }
         }
     }
@@ -148,40 +148,38 @@ function getAllMirrorLetters(numbers) {
     return filteredNumbers;
 }
 
-
 function findMatches(numbers) {
     const result = {};
 
-    result['....00..'] = getZeroEnd(numbers)
-    result['0001'] = getOneAtThe(numbers, '0001')
-    result['0010'] = getOneAtThe(numbers, '0010')
-    result['0100'] = getOneAtThe(numbers, '0100')
+    result["....00.."] = getZeroEnd(numbers);
+    result["0001"] = getOneAtThe(numbers, "0001");
+    result["0010"] = getOneAtThe(numbers, "0010");
+    result["0100"] = getOneAtThe(numbers, "0100");
     for (const sameLetter of sameLetters) {
         result[sameLetter] = getSameLetters(numbers, sameLetter);
     }
-    result['same letters'] = getAllSameLetters(numbers)
-    result['mirrored letters'] = getAllMirrorLetters(numbers)
-
+    result["same letters"] = getAllSameLetters(numbers);
+    result["mirrored letters"] = getAllMirrorLetters(numbers);
+    console.log(result);
     return result;
 }
 
-
 function fixMessageLength(chatId, text) {
-    const result = [''];
-    const lines = text.split('\n');
-    let indexResult=0, indexLines=0;
+    const result = [""];
+    const lines = text.split("\n");
+    let indexResult = 0,
+        indexLines = 0;
     while (indexLines < lines.length) {
         if (result[indexResult].length + lines[indexLines].length > 4095) {
             indexResult++;
-            result[indexResult] = '';
+            result[indexResult] = "";
         }
-        result[indexResult] += lines[indexLines] + '\n';
+        result[indexResult] += lines[indexLines] + "\n";
         indexLines++;
     }
 
     return result;
 }
-
 
 async function findNewNumbers() {
     try {
@@ -201,12 +199,12 @@ async function findNewNumbers() {
         allNumbers = new Set(currentNumbers);
 
         const results = findMatches(newNumbers);
-        let message = '';
+        let message = "";
         for (const key in results) {
             if (results[key].length > 0) {
-                message += key + ':\n';
-                message += results[key].join(', ')
-                message += '\n\n';
+                message += key + ":\n";
+                message += results[key].join(", ");
+                message += "\n\n";
             }
         }
         if (message.length > 0) {
@@ -217,9 +215,8 @@ async function findNewNumbers() {
                 }
             }
         }
-
     } catch (e) {
-        console.log(e)
+        console.log(e);
     }
 }
 
@@ -227,27 +224,34 @@ async function safeSendMessage(chatId, message) {
     try {
         await bot.sendMessage(chatId, message);
     } catch (error) {
-        if (error?.response?.body?.error_code === 403 && error?.response?.body?.description === 'Forbidden: bot was blocked by the user') {
+        if ("AggreageError" in error.message) {
+            await bot.sendMessage(chatId, message);
+        }
+        if (
+            error?.response?.body?.error_code === 403 &&
+            error?.response?.body?.description ===
+                "Forbidden: bot was blocked by the user"
+        ) {
             const index = users.indexOf(user);
             if (index > -1) {
                 users.splice(index, 1);
             }
         } else {
-            console.log(e);
+            console.log(error);
         }
     }
 }
 
 async function start() {
     try {
-        console.log('loading')
+        console.log("loading");
         const csrfToken = await fetchData();
         const numbers = await postData(csrfToken);
         allNumbers.add(...numbers);
 
-        console.log('started')
+        console.log("started");
         // Вызываем функцию fetchData раз в 12 часов
-        setInterval(findNewNumbers, 5*60*1000);
+        setInterval(findNewNumbers, 5 * 60 * 1000);
 
         bot.setMyCommands([
             { command: "/start", description: "Почати пошук номеру" },
@@ -263,12 +267,19 @@ async function start() {
                     chatId,
                     "https://upload.wikimedia.org/wikipedia/commons/5/5a/Car_icon_alone.png"
                 );
+
                 if (users.includes(chatId)) {
-                    await bot.sendMessage(chatId, `Ви вже підписані на оновлення`);
+                    await bot.sendMessage(
+                        chatId,
+                        `Ви вже підписані на оновлення`
+                    );
                 } else {
-                    await bot.sendMessage(chatId, `Ви підписалися на оновлення`);
+                    await bot.sendMessage(
+                        chatId,
+                        `Ви підписалися на оновлення`
+                    );
                     users.push(chatId);
-                    fs.writeFileSync('users.json', JSON.stringify(users));
+                    fs.writeFileSync("users.json", JSON.stringify(users));
                 }
 
                 // return bot.sendMessage(
