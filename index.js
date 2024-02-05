@@ -3,7 +3,7 @@ process.env.NTBA_FIX_319 = 1;
 import axios from "axios";
 import TelegramApi from "node-telegram-bot-api";
 import cheerio from "cheerio";
-import { numberOptions, againOptions, sameLetters } from "./options.js";
+import { numberOptions, sameLetters } from "./options.js";
 import { tscList } from "./tsc.js";
 import * as fs from "fs";
 
@@ -46,7 +46,7 @@ async function fetchData() {
 async function postData(csrfToken) {
     const numbers = [];
     // Проходимо по всіх об'єктах у масиві tscList
-    for (const tscItem of tscList) {
+    await Promise.all(tscList.map(async (tscItem) => {
         const params = new URLSearchParams();
         params.append("region", "15");
         params.append("tsc", tscItem.tscNumber);
@@ -54,7 +54,7 @@ async function postData(csrfToken) {
         params.append("number", "");
         params.append("csrfmiddlewaretoken", csrfToken);
 
-        const res = await fetch(url, {
+        const res = await fetch("http://opendata.hsc.gov.ua/check-leisure-license-plates/", {
             method: "POST",
             body: params.toString(),
             headers: {
@@ -79,7 +79,7 @@ async function postData(csrfToken) {
                 numbers.concat(regExpNumbers);
             }
         }
-    }
+    }));
     return numbers;
 }
 
@@ -160,7 +160,6 @@ function findMatches(numbers) {
     }
     result["same letters"] = getAllSameLetters(numbers);
     result["mirrored letters"] = getAllMirrorLetters(numbers);
-    console.log(result);
     return result;
 }
 
@@ -186,16 +185,14 @@ async function findNewNumbers() {
         // get all numbers
         const csrfToken = await fetchData();
         const currentNumbers = await postData(csrfToken);
-
+        console.log(currentNumbers.length)
         // find new numbers
         const newNumbers = [];
         for (const number of currentNumbers) {
             if (!allNumbers.has(number)) {
                 newNumbers.push(number);
-                allNumbers.add(number);
             }
         }
-
         allNumbers = new Set(currentNumbers);
 
         const results = findMatches(newNumbers);
@@ -224,10 +221,9 @@ async function safeSendMessage(chatId, message) {
     try {
         await bot.sendMessage(chatId, message);
     } catch (error) {
-        if ("AggreageError" in error.message) {
+        if ("AggregateError" in error.message) {
             await bot.sendMessage(chatId, message);
-        }
-        if (
+        } else if (
             error?.response?.body?.error_code === 403 &&
             error?.response?.body?.description ===
                 "Forbidden: bot was blocked by the user"
@@ -247,10 +243,10 @@ async function start() {
         console.log("loading");
         const csrfToken = await fetchData();
         const numbers = await postData(csrfToken);
-        allNumbers.add(...numbers);
+        allNumbers = new Set(numbers);
 
         console.log("started");
-        // Вызываем функцию fetchData раз в 12 часов
+
         setInterval(findNewNumbers, 5 * 60 * 1000);
 
         bot.setMyCommands([
