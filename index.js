@@ -47,65 +47,70 @@ async function fetchData() {
 }
 
 async function postData(csrfToken) {
-    const numbers = [];
-    // Проходимо по всіх об'єктах у масиві tscList
-    // await Promise.all(tscList.map(async (tscItem) => {
-    for (const tscItem of tscList) {
+    try {
+        const numbers = [];
+        // Проходимо по всіх об'єктах у масиві tscList
+        // await Promise.all(tscList.map(async (tscItem) => {
+        for (const tscItem of tscList) {
 
-        let data = qs.stringify({
-            'region': tscItem.region,
-            'tsc': tscItem.tscNumber,
-            'type_venichle': 'light_car_and_truck',
-            'number': '',
-            'csrfmiddlewaretoken': csrfToken
-        });
+            let data = qs.stringify({
+                'region': tscItem.region,
+                'tsc': tscItem.tscNumber,
+                'type_venichle': 'light_car_and_truck',
+                'number': '',
+                'csrfmiddlewaretoken': csrfToken
+            });
 
-        let config = {
-            method: 'post',
-            maxBodyLength: Infinity,
-            url: url,
-            headers: {
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-                'Accept-Language': 'en,en-US;q=0.9,ru;q=0.8,uk;q=0.7',
-                'Accept-Encoding': 'gzip, deflate, br',
-                'Cache-Control': 'max-age=0',
-                'Connection': 'keep-alive',
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'Origin': 'http://opendata.hsc.gov.ua',
-                'Referer': 'http://opendata.hsc.gov.ua/check-leisure-license-plates/',
-                'Sec-Fetch-Dest': 'document',
-                'Sec-Fetch-Mode': 'navigate',
-                'Sec-Fetch-Site': 'same-origin',
-                'Sec-Fetch-User': '?1',
-                'Upgrade-Insecure-Requests': '1',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-                'sec-ch-ua': '"Not A(Brand";v="99", "Google Chrome";v="121", "Chromium";v="121"',
-                'sec-ch-ua-mobile': '?0',
-                'sec-ch-ua-platform': '"Windows"'
-            },
-            data: data
-        };
+            let config = {
+                method: 'post',
+                maxBodyLength: Infinity,
+                url: url,
+                headers: {
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+                    'Accept-Language': 'en,en-US;q=0.9,ru;q=0.8,uk;q=0.7',
+                    'Accept-Encoding': 'gzip, deflate, br',
+                    'Cache-Control': 'max-age=0',
+                    'Connection': 'keep-alive',
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Origin': 'http://opendata.hsc.gov.ua',
+                    'Referer': 'http://opendata.hsc.gov.ua/check-leisure-license-plates/',
+                    'Sec-Fetch-Dest': 'document',
+                    'Sec-Fetch-Mode': 'navigate',
+                    'Sec-Fetch-Site': 'same-origin',
+                    'Sec-Fetch-User': '?1',
+                    'Upgrade-Insecure-Requests': '1',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+                    'sec-ch-ua': '"Not A(Brand";v="99", "Google Chrome";v="121", "Chromium";v="121"',
+                    'sec-ch-ua-mobile': '?0',
+                    'sec-ch-ua-platform': '"Windows"'
+                },
+                data: data
+            };
 
-        const res = await axios.request(config)
+            const res = await axios.request(config)
 
-        if (res.data) {
-            // const $ = cheerio.load(data);
-            // const tdElements = $("td");
-            // tdElements.each((index, element) => {
-            //     const licensePlate = $(element).text().trim();
-            //     if (licensePlateRegex.test(licensePlate)) {
-            //         numbers.push(licensePlate);
-            //     }
-            // });
+            if (res.data) {
+                // const $ = cheerio.load(data);
+                // const tdElements = $("td");
+                // tdElements.each((index, element) => {
+                //     const licensePlate = $(element).text().trim();
+                //     if (licensePlateRegex.test(licensePlate)) {
+                //         numbers.push(licensePlate);
+                //     }
+                // });
 
-            const regExpNumbers = res.data.match(licensePlateRegex);
-            if (regExpNumbers !== null) {
-                numbers.push(...regExpNumbers);
+                const regExpNumbers = res.data.match(licensePlateRegex);
+                if (regExpNumbers !== null) {
+                    numbers.push(...regExpNumbers);
+                }
             }
         }
+        // }));
+        return numbers;
+    } catch (error) {
+        console.log(error)
+        return [];
     }
-    // }));
-    return numbers;
 }
 
 async function startSearch(chatId) {
@@ -210,6 +215,7 @@ async function findNewNumbers() {
         // get all numbers
         const csrfToken = await fetchData();
         const currentNumbers = await postData(csrfToken);
+        if (currentNumbers.length === 0) return;
         // find new numbers
         const newNumbers = [];
         for (const number of currentNumbers) {
