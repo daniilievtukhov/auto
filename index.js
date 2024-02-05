@@ -5,6 +5,7 @@ import TelegramApi from "node-telegram-bot-api";
 import cheerio from "cheerio";
 import { numberOptions, sameLetters } from "./options.js";
 import { tscList } from "./tsc.js";
+import qs from "qs";
 import * as fs from "fs";
 
 const token = "6347029504:AAGpNCYGUNaWfT5KM-kaLh5cVx7rylVZ3s0";
@@ -13,7 +14,9 @@ const bot = new TelegramApi(token, { polling: true });
 
 const url = "http://opendata.hsc.gov.ua/check-leisure-license-plates/";
 
-const licensePlateRegex = /^[A-Z]{2}\d{4}[A-Z]{2}$/g;
+// const licensePlateRegex = /^[A-Z]{2}\d{4}[A-Z]{2}$/g;
+const licensePlateRegex = /[A-Z]{2}\d{4}[A-Z]{2}/g
+;
 
 let allNumbers = new Set();
 
@@ -46,25 +49,46 @@ async function fetchData() {
 async function postData(csrfToken) {
     const numbers = [];
     // Проходимо по всіх об'єктах у масиві tscList
-    await Promise.all(tscList.map(async (tscItem) => {
-        const params = new URLSearchParams();
-        params.append("region", "15");
-        params.append("tsc", tscItem.tscNumber);
-        params.append("type_venichle", "light_car_and_truck");
-        params.append("number", "");
-        params.append("csrfmiddlewaretoken", csrfToken);
+    // await Promise.all(tscList.map(async (tscItem) => {
+    for (const tscItem of tscList) {
 
-        const res = await fetch("http://opendata.hsc.gov.ua/check-leisure-license-plates/", {
-            method: "POST",
-            body: params.toString(),
-            headers: {
-                Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-                "Content-Type": "application/x-www-form-urlencoded",
-            },
+        let data = qs.stringify({
+            'region': tscItem.region,
+            'tsc': tscItem.tscNumber,
+            'type_venichle': 'light_car_and_truck',
+            'number': '',
+            'csrfmiddlewaretoken': csrfToken
         });
 
-        const data = await res.text();
-        if (data) {
+        let config = {
+            method: 'post',
+            maxBodyLength: Infinity,
+            url: url,
+            headers: {
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+                'Accept-Language': 'en,en-US;q=0.9,ru;q=0.8,uk;q=0.7',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Cache-Control': 'max-age=0',
+                'Connection': 'keep-alive',
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Origin': 'http://opendata.hsc.gov.ua',
+                'Referer': 'http://opendata.hsc.gov.ua/check-leisure-license-plates/',
+                'Sec-Fetch-Dest': 'document',
+                'Sec-Fetch-Mode': 'navigate',
+                'Sec-Fetch-Site': 'same-origin',
+                'Sec-Fetch-User': '?1',
+                'Upgrade-Insecure-Requests': '1',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+                'sec-ch-ua': '"Not A(Brand";v="99", "Google Chrome";v="121", "Chromium";v="121"',
+                'sec-ch-ua-mobile': '?0',
+                'sec-ch-ua-platform': '"Windows"'
+            },
+            data: data
+        };
+
+        const res = await axios.request(config)
+
+        if (res.data) {
             // const $ = cheerio.load(data);
             // const tdElements = $("td");
             // tdElements.each((index, element) => {
@@ -74,12 +98,13 @@ async function postData(csrfToken) {
             //     }
             // });
 
-            const regExpNumbers = data.match(licensePlateRegex);
+            const regExpNumbers = res.data.match(licensePlateRegex);
             if (regExpNumbers !== null) {
-                numbers.concat(regExpNumbers);
+                numbers.push(...regExpNumbers);
             }
         }
-    }));
+    }
+    // }));
     return numbers;
 }
 
@@ -185,7 +210,6 @@ async function findNewNumbers() {
         // get all numbers
         const csrfToken = await fetchData();
         const currentNumbers = await postData(csrfToken);
-        console.log(currentNumbers.length)
         // find new numbers
         const newNumbers = [];
         for (const number of currentNumbers) {
@@ -221,7 +245,8 @@ async function safeSendMessage(chatId, message) {
     try {
         await bot.sendMessage(chatId, message);
     } catch (error) {
-        if ("AggregateError" in error.message) {
+        // console.log(currentNumbers.length)
+        if ("AggregateError" in error.message || "RequestError" in error.message) {
             await bot.sendMessage(chatId, message);
         } else if (
             error?.response?.body?.error_code === 403 &&
@@ -243,6 +268,7 @@ async function start() {
         console.log("loading");
         const csrfToken = await fetchData();
         const numbers = await postData(csrfToken);
+        console.log(numbers.length)
         allNumbers = new Set(numbers);
 
         console.log("started");
